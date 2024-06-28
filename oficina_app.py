@@ -64,8 +64,7 @@ class OficinaApp:
         # Inicializa o banco de dados se ele não existir
         self.inicializar_banco_de_dados()
 
-        # Carrega os dados do banco de dados
-        self.carregar_dados()
+        
         
         self.carro_dropdown_os = ft.Dropdown(width=300)
         self.cliente_selecionado = None
@@ -90,13 +89,7 @@ class OficinaApp:
         self.pecas: List[Any] = []  # Inicialize com lista vazia
         self.clientes: List[Any] = []  # Inicialize com lista vazia
         # Carregue os dados primeiro
-        try:
-            self.carregar_dados()
-            self.carregar_clientes_no_dropdown()
-            #self.pecas, self.clientes = self.carregar_dados()
-        except Exception as e:
-            print(f"Erro ao carregar dados: {e}")
-        self.carregar_dados()
+        
         
         # Inicializa o formulario_os com os argumentos necessários
         #self.ordem_servico_formulario = OrdemServicoFormulario(
@@ -329,6 +322,7 @@ class OficinaApp:
             Tuple[List[Any], List[Any]]: Tupla contendo a lista de peças e a lista de clientes.
             Levanta uma exceção caso ocorra algum erro durante o processo.
         """
+       
         try:
             with criar_conexao_banco_de_dados(nome_banco_de_dados) as conexao:
                 self.clientes = obter_clientes(conexao)

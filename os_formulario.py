@@ -146,6 +146,14 @@ class OrdemServicoFormulario(ft.UserControl):
     def criar_modal_ordem_servico(self):
         """Cria o modal (janela pop-up) para a ordem de serviço."""
         print("Criando o modal...")
+        try:
+            self.carregar_dados()
+            self.carregar_clientes_no_dropdown()
+            #self.pecas, self.clientes = self.carregar_dados()
+        except Exception as e:
+            print(f"Erro ao carregar dados: {e}")
+            
+        self.carregar_dados()
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text("Criar Ordem de Serviço"),
