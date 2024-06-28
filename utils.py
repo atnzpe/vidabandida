@@ -9,7 +9,7 @@ def criar_pastas(caminho_base):
         caminho_base (str): O caminho base onde as pastas serão criadas.
     """
     
-    pastas = ["big","historico", "data", "report"]
+    pastas = ["historico", "data", "report"]
 
     for pasta in pastas:
         caminho_completo = os.path.join(caminho_base, pasta)

@@ -5,7 +5,7 @@ from datetime import datetime
 import queue
 
 # BANCO DE DADOS E FILA
-nome_banco_de_dados = "c:/big/data/oficina_guarulhos.db"
+nome_banco_de_dados = "./data/oficina_guarulhos.db"
 banco_de_dados = nome_banco_de_dados
 #conexao = criar_conexao_banco_de_dados(nome_banco_de_dados)
 # Fila para operações do banco de dados (se necessário)
@@ -24,6 +24,7 @@ def criar_conexao_banco_de_dados(banco_de_dados):
     banco_existe = os.path.exists(banco_de_dados)
     conexao = None
     try:
+        print(f"Tentando abrir banco de dados em: {os.path.abspath(banco_de_dados)}")
         conexao = sqlite3.connect(banco_de_dados)
         if not banco_existe:
             criar_tabelas(conexao)

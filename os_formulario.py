@@ -136,11 +136,12 @@ class OrdemServicoFormulario(ft.UserControl):
 
     def abrir_modal_ordem_servico(self, e):
         """Abre o modal da ordem de serviço."""
+        self.carregar_dados()
+        self.carregar_clientes_no_dropdown()
         self.dlg_ordem_servico = self.criar_modal_ordem_servico()
         self.page.dialog = self.dlg_ordem_servico
         print("Abrindo modal...")
-        self.carregar_dados()
-        self.carregar_clientes_no_dropdown()
+        
         self.dlg_ordem_servico.open = True
         self.criar_modal_ordem_servico()
 
@@ -158,6 +159,7 @@ class OrdemServicoFormulario(ft.UserControl):
 
     def criar_modal_ordem_servico(self):
         """Cria o modal (janela pop-up) para a ordem de serviço."""
+        
         print("Criando o modal...")
         dlg = ft.AlertDialog(
             modal=True,

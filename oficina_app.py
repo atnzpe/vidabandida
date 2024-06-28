@@ -1,7 +1,5 @@
 from typing import Any, Tuple, List
-from flet import Dropdown, dropdown  # Importa Dropdown e dropdown
 import flet as ft
-import sqlite3
 from flet import (
     Column,
     Container,
@@ -13,6 +11,8 @@ from flet import (
     UserControl,
     colors,
     ListView,
+    Dropdown, 
+    dropdown,
 )
 import threading
 import sqlite3
@@ -20,41 +20,53 @@ import bcrypt
 import queue
 from datetime import datetime
 import os
+
+# Importações para relatórios
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
-from flet import UserControl  # Certifique-se de importar os componentes necessários
 
-from editar_cliente import EditarCliente # Importe a classe EditarCliente
-
-
-from report import gerar_relatorio_os,gerar_relatorio_estoque,abrir_modal_os_por_cliente
+# Importações de outros módulos
+from editar_cliente import EditarCliente
+from report import gerar_relatorio_os, gerar_relatorio_estoque, abrir_modal_os_por_cliente
 from os_formulario import OrdemServicoFormulario
 from models import Oficina, Peca, Carro, Cliente, Usuario
+
+# Importações do banco de dados
 from database import (
     criar_conexao_banco_de_dados,
     criar_usuario_admin,
     obter_carros_por_cliente,
-    
     obter_clientes,
-    obter_carros_por_cliente,
     obter_pecas,
     inserir_ordem_servico,
     atualizar_estoque_peca,
     quantidade_em_estoque_suficiente,
     nome_banco_de_dados,
+    banco_de_dados,
     fila_db,
 )
-
-from editar_cliente import EditarCliente
-
-
 class OficinaApp:
 
     def __init__(self, page: ft.Page):
         super().__init__()
         
         self.page = page
+        
+        # Conexão única com o banco de dados
+        self.conexao = self.criar_conexao_segura()
+        if not self.conexao:
+            print("Erro ao conectar ao banco de dados. Encerrando a aplicação.")
+            self.page.window_destroy()
+            return
+        
+        
+        # Inicializa o banco de dados se ele não existir
+        self.inicializar_banco_de_dados()
+
+        # Carrega os dados do banco de dados
+        self.carregar_dados()
+        
         self.carro_dropdown_os = ft.Dropdown(width=300)
         self.cliente_selecionado = None
         self.carro_selecionado = None
@@ -268,6 +280,28 @@ class OficinaApp:
 
         self.page.update()
 
+    def criar_conexao_segura(self):
+        """
+        Cria uma conexão com o banco de dados e retorna a conexão.
+        Retorna None em caso de erro.
+        """
+        try:
+            conexao = sqlite3.connect(nome_banco_de_dados)
+            return conexao
+        except sqlite3.Error as e:
+            print(f"Erro ao conectar ao banco de dados: {e}")
+            return None
+
+    def inicializar_banco_de_dados(self):
+        """Inicializa as tabelas e dados básicos no banco de dados."""
+        try:
+            criar_usuario_admin(self.conexao)
+            # ... outras inicializações, se necessário ...
+        except Exception as e:
+            print(f"Erro ao inicializar o banco de dados: {e}")
+            
+    
+
     # Atualiza o Estado Dos Botoes
     def atualizar_estado_botoes(self):
         """Atualiza o estado dos botões com base no login."""
@@ -287,44 +321,59 @@ class OficinaApp:
     # ==================================
     # MOSTRA ALERTAS / FECHAR MODAL
     # ==================================
-    def carregar_dados(self):
-        """Carrega os dados iniciais do formulário."""
-        with criar_conexao_banco_de_dados(nome_banco_de_dados) as conexao:
-            self.clientes = obter_clientes(conexao)
-            self.pecas = obter_pecas(conexao)
-        self.peca_dropdown.options = [
-            ft.dropdown.Option(f"{peca[1]}") for peca in self.pecas
-        ]
-        self.page.update()
-    
-    
-    '''def carregar_dados(self) -> Tuple[List[Any], List[Any]]:
+    def carregar_dados(self) -> Tuple[List[Any], List[Any]]:
         """
         Carrega peças e clientes do banco de dados.
 
         Returns:
             Tuple[List[Any], List[Any]]: Tupla contendo a lista de peças e a lista de clientes.
-                Levanta uma exceção caso ocorra algum erro durante o processo.
+            Levanta uma exceção caso ocorra algum erro durante o processo.
         """
-        
-        with sqlite3.connect(nome_banco_de_dados) as conexao:
-            try:
+        try:
+            with criar_conexao_banco_de_dados(nome_banco_de_dados) as conexao:
                 self.clientes = obter_clientes(conexao)
                 self.pecas = obter_pecas(conexao)
                 
+                # Carregar outros dados (exemplo):
+                self.carros = self.carregar_carros(conexao)  #  <-- Nova função para carregar carros
+                self.servicos = self.carregar_servicos(conexao) # <-- Nova função para carregar serviços
+
                 if not self.clientes:
                     raise ValueError("A lista de clientes está vazia!")
                 if not self.pecas:
                     raise ValueError("A lista de peças está vazia!")
+                
+        except sqlite3.Error as e:
+            raise sqlite3.Error(f"Erro ao carregar dados do banco de dados: {e}")
 
-                # ... (resto do código da função carregar_dados) ...
+        except ValueError as e: 
+            print(f"Erro ao carregar dados: {e}")
+        
+        
+    def carregar_carros(self, conexao):
+        """
+        Carrega os dados dos carros do banco de dados.
+        """
+        try:
+            cursor = conexao.cursor()
+            cursor.execute("SELECT * FROM carros")
+            return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Erro ao carregar carros: {e}")
+            return []  # Retorna uma lista vazia em caso de erro
 
-            except sqlite3.Error as e:
-                raise sqlite3.Error(f"Erro ao carregar dados do banco de dados: {e}")
-
-            except ValueError as e: 
-                print(f"Erro ao carregar dados: {e}")
-        '''
+    def carregar_servicos(self, conexao):
+        """
+        Carrega os dados dos serviços do banco de dados.
+        """
+        try:
+            cursor = conexao.cursor()
+            cursor.execute("SELECT * FROM servicos") 
+            return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Erro ao carregar serviços: {e}")
+            return [] # Retorna uma lista vazia em caso de erro
+        
     def mostrar_alerta(self, mensagem):
         # O código acima está criando e exibindo uma caixa de diálogo de alerta (AlertDialog) com o título "ATENÇÃO"
         # e uma mensagem especificada pela variável "mensagem". A caixa de diálogo contém um único botão rotulado
@@ -458,7 +507,7 @@ class OficinaApp:
             content=ft.Column(
                 [
                     ft.TextField(label="Nome", ref=ft.Ref[str]()),
-                    ft.TextField(label="Telefone", value="55 + ddd + numero cliente", ref=ft.Ref[str]()),
+                    ft.TextField(label="Telefone (Ex: 55 + ddd + numero cliente)", ref=ft.Ref[str]()),
                     ft.TextField(label="Endereço", ref=ft.Ref[str]()),
                     ft.TextField(label="Email", ref=ft.Ref[str]()),
                 ]
