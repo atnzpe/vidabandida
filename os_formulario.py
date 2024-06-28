@@ -153,7 +153,7 @@ class OrdemServicoFormulario(ft.UserControl):
         except Exception as e:
             print(f"Erro ao carregar dados: {e}")
             
-        self.carregar_dados()
+        
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text("Criar Ordem de Serviço"),
