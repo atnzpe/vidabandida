@@ -17,7 +17,7 @@ from flet import (
 import urllib.parse
 import os
 from datetime import datetime
-import sqlite3
+
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -55,17 +55,7 @@ class BotaoAdicionarPeca(ft.UserControl):
         super().__init__()
         self.ordem_servico_formulario = ordem_servico_formulario
 
-    def build(self):
-        """Constrói o botão com lógica de habilitação dinâmica."""
-        return ft.ElevatedButton(
-            "Adicionar Peça",
-            on_click=self.ordem_servico_formulario.adicionar_peca,
-            disabled=not (
-                self.ordem_servico_formulario.peca_dropdown.value
-                and self.ordem_servico_formulario.preco_unitario_field.value
-                and self.ordem_servico_formulario.quantidade_field.value
-            ),
-        )
+    
 
 
 class OrdemServicoFormulario(ft.UserControl):
@@ -74,39 +64,40 @@ class OrdemServicoFormulario(ft.UserControl):
     def __init__(self, page, oficina_app, pecas, clientes):  #
         super().__init__()
         self.page = page
+         # Inicializa dados da ordem de serviço
+        self.pecas_selecionadas = []
+        self.link_whatsapp = None
+
+        
         self.oficina_app = oficina_app
         self.pecas = pecas
         self.clientes = clientes
         self.adicionar_peca_button = BotaoAdicionarPeca(self)
         self.botao_add = ft.TextButton("ADCIONE A PEÇA", on_click=self.adicionar_peca)
-        # Inicializa os componentes da interface
+        
         self.cliente_dropdown = ft.Dropdown(width=200)
         self.carro_dropdown = ft.Dropdown(width=200)
-        self.peca_dropdown = ft.Dropdown(
+        self.peca_dropdown = ft.Dropdown(  # Inicializar o dropdown primeiro
             width=200,
             options=[ft.dropdown.Option(f"{peca[1]}") for peca in self.pecas],
-            # Conecta on_change ao atualizar_botao_adicionar_peca
-            on_change=lambda e: self.atualizar_botao_adicionar_peca(
-                e
-            ),  # Conecta ao evento
+            on_change=self.atualizar_botao_adicionar_peca,
         )
-        self.preco_unitario_field = ft.TextField(
-            label="Preço Unitário",
-            width=200,
-            value="0.00",  # Define como string inicialmente
-            # Conecta on_change ao atualizar_botao_adicionar_peca
-            on_change=lambda e: self.atualizar_botao_adicionar_peca(
-                e
-            ),  # Conecta ao evento
+        
+        self.preco_unitario_field = (
+            ft.TextField(
+                label="Preço Unitário",
+                width=200,
+                value="0.00",
+                on_change=self.atualizar_botao_adicionar_peca,
+            ),
         )
+
         self.quantidade_field = ft.TextField(
             label="Quantidade",
             width=100,
             value="1",  # Define como string inicialmente
             # Conecta on_change ao atualizar_botao_adicionar_peca
-            on_change=lambda e: self.atualizar_botao_adicionar_peca(
-                e
-            ),  # Conecta ao evento
+            on_change=self.atualizar_botao_adicionar_peca,  # Conecta ao evento
         )
         self.botao_add
         self.pecas_list_view = ft.ListView(expand=True, height=200)
@@ -136,12 +127,9 @@ class OrdemServicoFormulario(ft.UserControl):
 
     def abrir_modal_ordem_servico(self, e):
         """Abre o modal da ordem de serviço."""
-        self.carregar_dados()
-        self.carregar_clientes_no_dropdown()
         self.dlg_ordem_servico = self.criar_modal_ordem_servico()
         self.page.dialog = self.dlg_ordem_servico
         print("Abrindo modal...")
-        
         self.dlg_ordem_servico.open = True
         self.criar_modal_ordem_servico()
 
@@ -153,13 +141,10 @@ class OrdemServicoFormulario(ft.UserControl):
         """
         # self.adicionar_peca_button.atualizar_estado()
         self.calcular_valor_total()  # Recalcula totais quando algo muda
-        self.carregar_dados()
-        self.carregar_clientes_no_dropdown()
         self.page.update()
 
     def criar_modal_ordem_servico(self):
         """Cria o modal (janela pop-up) para a ordem de serviço."""
-        
         print("Criando o modal...")
         dlg = ft.AlertDialog(
             modal=True,
@@ -424,6 +409,7 @@ class OrdemServicoFormulario(ft.UserControl):
 
     def carregar_clientes_no_dropdown(self):
         """Carrega a lista de clientes no dropdown."""
+        print(f"Tipo de self.pecas: {type(self.pecas)}")
         try:
             with criar_conexao_banco_de_dados(nome_banco_de_dados) as conexao:
                 clientes = obter_clientes(conexao)
@@ -480,26 +466,48 @@ class OrdemServicoFormulario(ft.UserControl):
     def adicionar_peca(self, e):
         """Adiciona uma peça à lista de peças da OS."""
         peca_nome = self.peca_dropdown.value
-        preco_unitario = float(self.preco_unitario_field.value)
-        quantidade = float(self.quantidade_field.value)
+
+        try:
+            preco_unitario = float(self.preco_unitario_field.value)
+            if preco_unitario <= 0:
+                raise ValueError("Preço unitário deve ser maior que zero.")
+        except ValueError:
+            ft.snack_bar = ft.SnackBar(ft.Text("Preço unitário inválido."))
+            self.page.show_snack_bar(ft.snack_bar)
+            return
+
+        try:
+            quantidade = int(self.quantidade_field.value)  # Quantidade como inteiro
+            if quantidade <= 0:
+                raise ValueError("Quantidade deve ser maior que zero.")
+        except ValueError:
+            ft.snack_bar = ft.SnackBar(ft.Text("Quantidade inválida."))
+            self.page.show_snack_bar(ft.snack_bar)
+            return
+
         valor_total = preco_unitario * quantidade
 
-        self.pecas_selecionadas.append(
-            {
-                "nome": peca_nome,
-                "preco_unitario": preco_unitario,
-                "quantidade": quantidade,
-                "valor_total": valor_total,
-            }
-        )
-        self.atualizar_lista_pecas()
-        self.calcular_valor_total()
+        try:
+            self.pecas_selecionadas.append(
+                {
+                    "nome": peca_nome,
+                    "preco_unitario": preco_unitario,
+                    "quantidade": quantidade,
+                    "valor_total": valor_total,
+                }
+            )
+            self.atualizar_lista_pecas()
+            self.calcular_valor_total()
 
-        self.peca_dropdown.value = None
-        self.preco_unitario_field.value = 0.0
-        self.quantidade_field.value = 0.0
+            self.peca_dropdown.value = None
+            self.preco_unitario_field.value = "0.00"  # Reset para string
+            self.quantidade_field.value = "1"  # Reset para string
 
-        self.page.update()
+            self.page.update()
+        except Exception as e:
+            print(f"Erro ao adicionar peça: {e}")
+            ft.snack_bar = ft.SnackBar(ft.Text("Erro ao adicionar peça."))
+            self.page.show_snack_bar(ft.snack_bar)
 
     def formatar_moeda(self, valor):
         """Formata um valor como moeda brasileira (R$)."""
@@ -737,7 +745,7 @@ class OrdemServicoFormulario(ft.UserControl):
             valor_total_os = valor_total_pecas + mao_de_obra
 
             nome_arquivo = f"OS{ordem_servico_id}_{cliente_nome}_{placa_carro}_{data_hora_criacao}.pdf"
-            caminho_pasta = "./big/historico"
+            caminho_pasta = "c:/big/historico"
             os.makedirs(caminho_pasta, exist_ok=True)
             caminho_arquivo = os.path.join(caminho_pasta, nome_arquivo)
 
