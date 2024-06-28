@@ -1,32 +1,43 @@
-import flet as ft
+
+
+import flet as ft  
 import threading
+from flet import Dropdown, dropdown  # Importa Dropdown e dropdown
 
 from oficina_app import OficinaApp, processar_fila_db
 from utils import criar_pastas
 
+
+# Função principal para iniciar a aplicação.
 def main(page: ft.Page):
-    """Função principal da aplicação Flet."""
+    """
+    Função principal para iniciar a aplicação.
+    """
 
-    # Configuração da página
-    page.title = "Oficina Guarulhos"  # Título da página
-    page.theme_mode = ft.ThemeMode.DARK  # Tema escuro
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER  # Alinhamento centralizado
+    # Define o título da página como "Oficina Guarulhos".
+    page.title = "Oficina Guarulhos"
+    # Define a orientação vertical para os controles na página.
+    page.theme_mode = ft.ThemeMode.DARK
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
+    # Cria uma instância da aplicação OficinaApp.
+    app = OficinaApp(page)
 
-    # Cria a estrutura de diretórios
+    # Executa a função processar_fila_db em uma thread separada.
+    thread_db = threading.Thread(target=processar_fila_db, args=(page,), daemon=True)
+    thread_db.start()
+    page.on_close = lambda e: page.window_destroy()
+
+    # Inscreva-se para receber mensagens da thread do banco de dados
+    page.pubsub.subscribe(app._on_message)
+
+    # Criar as pastas necessárias
     criar_pastas(".")
 
-    # Inicializa a aplicação
-    oficina_app = OficinaApp(page)
+    # Constrói a interface do usuário chamando o método build da instância app.
+    
+    page.add(app.build())
 
-    # Gerenciamento da thread do banco de dados
-    page.pubsub.subscribe(oficina_app._on_message)  # Inscreve-se para receber mensagens da thread
-    thread_db = threading.Thread(
-        target=processar_fila_db, args=(page,), daemon=True
-    )  # Cria a thread
-    thread_db.start()  # Inicia a thread
 
-    # Inicialização da interface
-    page.update()
-    page.add(oficina_app.build())
-
+# Inicializa a aplicação Flet com a função main se este script for executado.
 ft.app(target=main)

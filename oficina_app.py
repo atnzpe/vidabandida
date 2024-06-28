@@ -52,6 +52,7 @@ class OficinaApp:
         super().__init__()
         
         self.page = page
+        self.os = OrdemServicoFormulario
         
         # Conexão única com o banco de dados
         self.conexao = self.criar_conexao_segura()
