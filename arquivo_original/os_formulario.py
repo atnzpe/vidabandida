@@ -64,7 +64,7 @@ class OrdemServicoFormulario(ft.UserControl):
     def __init__(self, page, oficina_app, pecas, clientes):  #
         super().__init__()
         self.page = page
-         # Inicializa dados da ordem de serviço
+        # Inicializa dados da ordem de serviço
         self.pecas_selecionadas = []
         self.link_whatsapp = None
 
@@ -82,14 +82,12 @@ class OrdemServicoFormulario(ft.UserControl):
             options=[ft.dropdown.Option(f"{peca[1]}") for peca in self.pecas],
             on_change=self.atualizar_botao_adicionar_peca,
         )
-        
-        self.preco_unitario_field = (
-            ft.TextField(
-                label="Preço Unitário",
-                width=200,
-                value="0.00",
-                on_change=self.atualizar_botao_adicionar_peca,
-            ),
+        self.preco_unitario_field = []
+        self.preco_unitario_field = ft.TextField(
+            label="Preço Unitário",
+            width=200,
+            value="0.00",
+            on_change=self.atualizar_botao_adicionar_peca,
         )
 
         self.quantidade_field = ft.TextField(
@@ -127,10 +125,10 @@ class OrdemServicoFormulario(ft.UserControl):
 
     def abrir_modal_ordem_servico(self, e):
         """Abre o modal da ordem de serviço."""
-        self.dlg_ordem_servico = self.criar_modal_ordem_servico()
-        self.page.dialog = self.dlg_ordem_servico
+        
+        
         print("Abrindo modal...")
-        self.dlg_ordem_servico.open = True
+        
         self.criar_modal_ordem_servico()
 
     def atualizar_botao_adicionar_peca(self, e):
@@ -153,8 +151,8 @@ class OrdemServicoFormulario(ft.UserControl):
         except Exception as e:
             print(f"Erro ao carregar dados: {e}")
             
-        self.carregar_dados()
-        dlg = ft.AlertDialog(
+        
+        self.dlg_os = ft.AlertDialog(
             modal=True,
             title=ft.Text("Criar Ordem de Serviço"),
             content=ft.Container(
@@ -229,11 +227,12 @@ class OrdemServicoFormulario(ft.UserControl):
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
-        self.page.dialog = dlg
-        dlg.open = True
+        self.page.dialog = self.dlg_os
+        self.dlg_os.open = True
+        
 
-        #self.page.update()
-        return dlg
+        self.page.update()
+        #return dlg
 
     def atualizar_mao_de_obra(self, e):
         """Atualiza o valor da mão de obra e recalcula o total da OS."""
@@ -404,6 +403,8 @@ class OrdemServicoFormulario(ft.UserControl):
         if self.page.dialog:
             self.page.dialog.open = False
             self.page.update()
+            
+            
 
     def remover_peca(self, index):
         """Remove uma peça da lista de peças selecionadas."""
@@ -538,8 +539,13 @@ class OrdemServicoFormulario(ft.UserControl):
 
     def fechar_modal_os(self, e):
         """Fecha o modal de ordem de serviço."""
-        self.page.dialog.open = False
-        self.page.update()
+        print("Fechar modal!")
+        if self.page.dialog:
+            
+            self.page.dialog.open = False
+            self.page.update()
+            
+            
 
     def criar_ordem_servico(self, e):
         """Cria a ordem de serviço no banco de dados."""
