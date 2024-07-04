@@ -39,6 +39,7 @@ from database import (
 )
 
 
+
 class BotaoAdicionarPeca(ft.UserControl):
     """
     UserControl para o botão "Adicionar Peça".
@@ -74,6 +75,10 @@ class OrdemServicoFormulario(ft.UserControl):
         self.clientes = clientes
         self.adicionar_peca_button = BotaoAdicionarPeca(self)
         self.botao_add = ft.TextButton("ADCIONE A PEÇA", on_click=self.adicionar_peca)
+        #self.orcamento_formulario = OrcamentoFormulario(self.page, self, self.pecas, self.clientes)
+        self.botao_enviar_orcamento = ft.ElevatedButton(
+            "Enviar Orçamento", on_click=self.enviar_orcamento
+        )
         
         self.cliente_dropdown = ft.Dropdown(width=200)
         self.carro_dropdown = ft.Dropdown(width=200)
@@ -351,6 +356,8 @@ class OrdemServicoFormulario(ft.UserControl):
             title=ft.Text("Pré-visualização da OS"),
             content=conteudo_preview,
             actions=[
+                ft.Text("Enviar Orçamento para o Whatsapp:"),
+                self.botao_enviar_orcamento,
                 ft.ElevatedButton("Fechar", on_click=self.fechar_modal_preview),
                 ft.ElevatedButton("Enviar OS", on_click=self.criar_ordem_servico),
             ],
@@ -759,7 +766,7 @@ class OrdemServicoFormulario(ft.UserControl):
             valor_total_os = valor_total_pecas + mao_de_obra
 
             nome_arquivo = f"OS{ordem_servico_id}_{cliente_nome}_{placa_carro}_{data_hora_criacao}.pdf"
-            caminho_pasta = "c:/big/historico"
+            caminho_pasta = "./historico"
             os.makedirs(caminho_pasta, exist_ok=True)
             caminho_arquivo = os.path.join(caminho_pasta, nome_arquivo)
 
@@ -840,3 +847,214 @@ class OrdemServicoFormulario(ft.UserControl):
         """
         self.calcular_valor_total()  # Recalcula totais quando algo muda
         self.page.update()
+        
+        
+        
+   #============================
+   # Orçamento
+   #============================     
+
+    def enviar_orcamento(self, e):
+        """Gera o orçamento e envia por WhatsApp."""
+        if not all([self.cliente_dropdown.value, self.carro_dropdown.value]):
+            ft.snack_bar = ft.SnackBar(ft.Text("Preencha os campos Cliente e Carro!"))
+            self.page.show_snack_bar(ft.snack_bar)
+            return
+
+        try:
+            # 1. Gerar PDF do Orçamento
+            self.gerar_pdf_orcamento()
+
+            # 2. Gerar Link do WhatsApp com o PDF
+            link_whatsapp = self.gerar_link_whatsapp_orcamento()
+            if link_whatsapp:
+                self.page.launch_url(link_whatsapp)
+                self.mostrar_sucesso("Orçamento enviado com sucesso!")
+            else:
+                self.mostrar_erro("Erro ao gerar link do WhatsApp.")
+
+        except Exception as e:
+            print(f"Erro ao enviar orçamento: {e}")
+            self.mostrar_erro("Erro ao enviar orçamento.")
+
+    def gerar_pdf_orcamento(self):
+        """Gera um PDF do orçamento."""
+        # Utilize a lógica da função gerar_pdf_os, adaptando para o orçamento
+        try:
+            ordem_servico_id = "ORC"  # Ou qualquer outro identificador para orçamento
+            cliente_nome = self.cliente_dropdown.value.split(" (ID: ")[0]
+            placa_carro = self.carro_dropdown.value.split("Placa: ")[1][:-1]
+            data_hora_criacao = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+
+            # Formatar os itens da OS para a tabela
+            dados_tabela = [
+                ["Material", "Valor Unitário", "Quantidade", "Valor Total"]
+            ]  # Cabeçalho
+            for peca in self.pecas_selecionadas:
+                dados_tabela.append(
+                    [
+                        peca["nome"],
+                        f"R$ {peca['preco_unitario']:.2f}",
+                        peca["quantidade"],
+                        f"R$ {peca['valor_total']:.2f}",
+                    ]
+                )
+
+            # Criar a tabela com ReportLab
+            tabela = Table(dados_tabela)
+            estilo_tabela = TableStyle(
+                [
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),  # Alinhamento à esquerda
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),  # Alinhamento vertical
+                    ("GRID", (0, 0), (-1, -1), 1, colors.black),  # Linhas da tabela
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),  # Cabeçalho
+                    (
+                        "FONTNAME",
+                        (0, 0),
+                        (-1, 0),
+                        "Helvetica-Bold",
+                    ),  # Negrito no cabeçalho
+                ]
+            )
+            tabela.setStyle(estilo_tabela)
+
+            valor_total_pecas = sum(
+                peca["valor_total"] for peca in self.pecas_selecionadas
+            )
+            mao_de_obra = self.maodeobra
+            dados_tabela.append(["Mão de Obra", "", "", f"R$ {mao_de_obra:.2f}"])
+            valor_total_os = valor_total_pecas + mao_de_obra
+
+            nome_arquivo = (
+                f"ORC{cliente_nome}_{placa_carro}_{data_hora_criacao}.pdf"
+            )
+            caminho_pasta = "./historico"
+            os.makedirs(caminho_pasta, exist_ok=True)
+            caminho_arquivo = os.path.join(caminho_pasta, nome_arquivo)
+
+            doc = SimpleDocTemplate(
+                caminho_arquivo,
+                pagesize=letter,
+                title=f"Orçamento - Nº {ordem_servico_id}",
+            )
+            conteudo = [
+                Paragraph(
+                    f"**Orçamento - Nº {ordem_servico_id}**",
+                    getSampleStyleSheet()["Heading1"],
+                ),
+                Spacer(1, 12),
+                Paragraph(
+                    f"**Cliente:** {cliente_nome}", getSampleStyleSheet()["Normal"]
+                ),
+                Paragraph(
+                    f"**Placa do Carro:** {placa_carro}",
+                    getSampleStyleSheet()["Normal"],
+                ),
+                Paragraph(
+                    f"**Data de Criação:** {data_hora_criacao}",
+                    getSampleStyleSheet()["Normal"],
+                ),
+                Spacer(1, 12),
+                tabela,
+                Spacer(1, 12),
+                Paragraph(
+                    f"Valor das Peças: R$ {valor_total_pecas:.2f}",
+                    getSampleStyleSheet()["Normal"],
+                ),
+                Paragraph(
+                    f"Valor da Mão de Obra: R$ {mao_de_obra:.2f}",
+                    getSampleStyleSheet()["Normal"],
+                ),
+                Paragraph(
+                    f"**Valor Total da OS: R$ {valor_total_os:.2f}**",
+                    getSampleStyleSheet()["Heading3"],
+                ),
+            ]
+            doc.build(conteudo)
+            print(f"PDF da OS gerado com sucesso em: {caminho_arquivo}")
+
+        except Exception as e:
+            print(f"Erro ao gerar PDF da OS: {e}")
+        pass  # Implemente a lógica para gerar o PDF do orçamento
+    
+    def gerar_texto_orcamento(self):
+        return self.formatar_orcamento()    
+
+    def formatar_orcamento(self):
+        """Formata os dados da OS no formato desejado."""
+        cliente_nome = self.cliente_dropdown.value.split(" (ID: ")[0]
+        placa_carro = self.carro_dropdown.value.split("Placa: ")[1][:-1]
+        data_hora_criacao = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
+        mao_de_obra = self.maodeobra
+
+        # Cabeçalho
+        os_formatada = f"**ORÇAMENTO**\n\n"
+        os_formatada = f"**Cliente:** {cliente_nome}\n"
+        os_formatada += f"**Placa do Carro:** {placa_carro}\n"
+        os_formatada += f"**Data do Orçamento:** {data_hora_criacao}\n\n"
+
+        # Itens em tabela
+        os_formatada += "**Itens:**\n"
+        os_formatada += "| Material | Valor Unitário | Quantidade | Valor Total |\n"
+        os_formatada += "|---|---|---|---| \n"
+
+        for peca in self.pecas_selecionadas:
+            os_formatada += (
+                f"| {peca['nome']} "
+                f"| R$ {peca['preco_unitario']:.2f} "
+                f"| {peca['quantidade']} "
+                f"| R$ {peca['valor_total']:.2f} |\n"
+            )
+
+            # Valores totais
+        valor_total_pecas = sum(peca["valor_total"] for peca in self.pecas_selecionadas)
+        mao_de_obra = self.maodeobra
+        valor_total_os = valor_total_pecas + mao_de_obra
+
+        os_formatada += f"\nValor das Peças: R$ {valor_total_pecas:.2f}\n"
+        os_formatada += f"Valor da Mão de Obra: R$ {mao_de_obra:.2f}\n"
+        os_formatada += f"**Valor Total da OS: R$ {valor_total_os:.2f}**"
+
+        return os_formatada
+
+    def gerar_link_whatsapp_orcamento(self):
+        """Gera o link do WhatsApp para enviar o orçamento."""
+        # Reutilização da lógica de gerar_link_whatsapp, adaptando a mensagem
+        try:
+            if self.cliente_dropdown.value:
+                cliente_nome = self.cliente_dropdown.value.split(" (ID: ")[0]
+                numero_telefone = self.buscar_numero_cliente(cliente_nome)
+
+                if numero_telefone:
+                    # Adaptação da mensagem para o orçamento
+                    
+                    
+                    mensagem = self.gerar_texto_orcamento()
+                    texto_codificado = urllib.parse.quote(mensagem)
+                    link_whatsapp = f"https://web.whatsapp.com/send?phone={numero_telefone}&text={texto_codificado}"
+                    print(f"Link do WhatsApp: {link_whatsapp}")
+                    return link_whatsapp
+                else:
+                    print(
+                        f"Número de telefone não encontrado para o cliente: {cliente_nome}"
+                    )
+                    return None
+            else:
+                print("Erro: Nenhum cliente selecionado no dropdown.")
+                return None
+        except Exception as e:
+            print(f"Erro ao gerar link do WhatsApp: {e}")
+            return None
+        pass  # Implemente a lógica para gerar o link do WhatsApp
+
+    def mostrar_erro(self, mensagem):
+        ft.snack_bar = ft.SnackBar(ft.Text(mensagem))
+        self.page.show_snack_bar(ft.snack_bar)
+
+    def mostrar_sucesso(self, mensagem):
+        ft.snack_bar = ft.SnackBar(ft.Text(mensagem))
+        self.page.show_snack_bar(ft.snack_bar)
+
+
+
+    
